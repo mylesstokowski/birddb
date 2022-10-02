@@ -30,24 +30,31 @@
 #' con <- ebird_conn(dataset = "observations")
 #' 
 #' unlink(temp_dir, recursive = TRUE)
-ebird_conn <- function(dataset = c("observations", "checklists"), 
+#' todo: need a more generic way to connect to subset observations datasets 
+ebird_conn <- function(dataset = c("observations", "checklists", "observations_US-VT_relAug-2022"), 
                        cache_connection = TRUE,
                        memory_limit = 16) {
   
   dataset <- match.arg(dataset)
-  #parquet <- ebird_parquet_files(dataset = dataset)
   
   conn <- duckdb_connection(memory_limit = memory_limit,
                             cache_connection = cache_connection)
   # create the view if does not exist
   
-  parquet <- paste0(file.path(ebird_data_dir(), dataset), "/*.parquet")
+  if (dataset == "observations_US-VT_relAug-2022") {
+    parquet <- ebird_parquet_files(dataset = dataset)
+    parquet <- paste0("['", paste(parquet, collapse = "', '"), "']")
+  } else {
+    parquet <- paste0(file.path(ebird_data_dir(), dataset), "/*.parquet")
+  }
+  
+  
   
   if (!dataset %in% DBI::dbListTables(conn)){
     # query to create view in duckdb to the parquet file
     view_query <- paste0("CREATE VIEW '", dataset, 
-                         "' AS SELECT * FROM parquet_scan('",
-                         parquet, "');")
+                         "' AS SELECT * FROM parquet_scan(",
+                         parquet, ");")
     DBI::dbSendQuery(conn, view_query)
   }
 
@@ -98,7 +105,7 @@ db_is_invalid <- function(conn) {
   inherits(conn, "DBIConnection") && !DBI::dbIsValid(conn)
 }
 
-ebird_parquet_files <- function(dataset = c("observations", "checklists")) {
+ebird_parquet_files <- function(dataset = c("observations", "checklists", "observations_US-VT_relAug-2022")) {
   dataset <- match.arg(dataset)
   
   # list of all parquet files

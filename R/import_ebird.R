@@ -54,15 +54,23 @@
 #' import_ebird(tar)
 #' 
 #' unlink(temp_dir, recursive = TRUE)
-import_ebird <- function(tarfile) {
+import_ebird <- function(tarfile, partition_keys=c("county_code"), 
+                         keep_cols=c(
+                          'group_identifier', 'sampling_event_identifier', 'observer_id',
+                          'scientific_name', 'observation_count', 'common_name',
+                          'county_code', 'locality', 'locality_id', 'locality_type',
+                          'latitude', 'longitude', 'observation_date',
+                          'time_observations_started', 'duration_minutes', 'effort_distance_km', 
+                          'all_species_reported', 'state', 'county', 'county_code')) {
   if (is_checklists(tarfile)) {
     dataset <- "checklists"
   } else if (is_observations(tarfile, allow_subset = FALSE)) {
     dataset <- "observations"
   } else if (is_observations(tarfile, allow_subset = TRUE)) {
-    stop("It appears you downloaded a subset of eBird data using the ",
-         "Custom Download form. birddb currently only supports importing ",
-         "the full eBird Basic Dataset.")
+    dataset <- paste0("observations", gsub("(ebd)|(.zip)", "", basename(tarfile)))
+    # stop("It appears you downloaded a subset of eBird data using the ",
+    #      "Custom Download form. birddb currently only supports importing ",
+    #      "the full eBird Basic Dataset.")
   } else {
     stop("Non-stardard eBird data filename provided: ", basename(tarfile))
   }
@@ -92,8 +100,13 @@ import_ebird <- function(tarfile) {
   source_dir <- file.path(ebird_data_dir(), "ebird_tmp")
   unlink(source_dir, recursive = TRUE)
   dir.create(source_dir, recursive = TRUE)
-  utils::untar(tarfile = tarfile, exdir = source_dir)
-  ebd <- list.files(source_dir, pattern = "ebd.*\\.txt\\.gz",
+  if (grepl("\\.tar$", tarfile)) {
+    utils::untar(tarfile = tarfile, exdir = source_dir)
+  } else { # zip
+    utils::unzip(zipfile = tarfile, exdir = source_dir)
+  }
+    
+  ebd <- list.files(source_dir, pattern = "ebd.*\\.txt(\\.gz)?",
                     full.names = TRUE, recursive = TRUE)
   if (length(ebd) != 1 || !file.exists(ebd)) {
     stop("txt.gz file not successfully extracted from tarfile.")
@@ -102,9 +115,31 @@ import_ebird <- function(tarfile) {
   # open tsv and set up data schema
   ds <- arrow_open_ebird_txt(ebd, dest)
   
+  # this is where we'd add additional pre-filters
+  # todo: filtering/selecting should be controllable with function parameters
+  # maybe we pass a function that takes and returns an arrow Dataset
+  ds <- dplyr::filter(
+    ds, 
+    (protocol_type == "Traveling" | protocol_type == "Stationary"),
+    all_species_reported == 1,
+    category == "species",
+    locality_type == "H",
+    # observation_count == "X" | observation_count > 0 # we want to keep presence "X" observations
+    )
+  
+  # deduplicate on group identifier, common name
+  # todo: this doesn't work as is with arrow Dataset
+  # ds <- dplyr::mutate(ds, temp = stringr::str_c(group_identifier, common_name))
+  # ds <- ds[!duplicated(ds$temp),]
+  # ds <- dplyr::select(ds, -c(temp))
+  
+  if (length(keep_cols) > 0) {
+    ds <- dplyr::select(ds, keep_cols)  
+  }
+
   # stream to parquet
   message("Importing to parquet...")
-  arrow::write_dataset(ds, dest, format = "parquet", 
+  arrow::write_dataset(ds, dest, format = "parquet", partitioning = partition_keys,
                        max_rows_per_file=1000000L)
   
   # save metadata
@@ -113,6 +148,7 @@ import_ebird <- function(tarfile) {
   unlink(source_dir, recursive = TRUE)
   invisible(dest)
 }
+
 
 arrow_open_ebird_txt <- function(ebd, dest) {
   ds <- arrow::open_dataset(ebd, format = "tsv")
@@ -173,18 +209,23 @@ record_metadata <- function(tarfile) {
     dataset <- "observations"
     subset <- NA_character_
   # todo: implement ability to import ebd subset, currently in a zip file
-  # } else if (is_observations(f, allow_subset = TRUE)) {
-  #   dataset <- "observations"
-  #   subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar",
-  #                 "\\1", f)
+  } else if (is_observations(f, allow_subset = TRUE)) {
+    dataset <- "observations"
+    subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\(.tar)|(.zip)",
+                  "\\1", f)
   } else {
     stop("The provided tar filename does not appear to contain eBird data. ", 
          "The expected format is, e.g., ebd_relJul-2021.tar.")
   }
   
   # parse date from filename
-  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.tar", 
+  if (is.na(subset)) {
+  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.tar",
                  "\\1", f)
+  } else {
+    rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})$",
+                   "\\1", subset)
+  }
   date <- strsplit(rawdate, "-")[[1]]
   date[1] <- match(date[1], month.abb)
   date <- paste(date[2], date[1], "1", sep = "-")
@@ -216,10 +257,9 @@ record_metadata <- function(tarfile) {
   invisible(file_metadata)
 }
 
-
 is_checklists <- function(x) {
   x <- basename(x)
-  if (!grepl("\\.tar$", x)) {
+  if (!grepl("\\.(tar)|(zip)$", x)) {
     stop("The provided file does not appear to be a tar archive. The file ",
          "extension should be .tar.")
   }
@@ -228,9 +268,9 @@ is_checklists <- function(x) {
 
 is_observations <- function(x, allow_subset = FALSE) {
   x <- basename(x)
-  if (!grepl("\\.tar$", x)) {
-    stop("The provided file does not appear to be a tar archive. The file ",
-         "extension should be .tar.")
+  if (!grepl("\\.(tar)|(zip)$", x)) {
+    stop("The provided file does not appear to be a tar or zip archive. The ",
+         "file extension should be .tar or .zip.")
   }
   is_obs <- grepl("ebd_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar$", x)
   if (allow_subset) {

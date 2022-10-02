@@ -47,3 +47,9 @@ observations <- function(conn = ebird_conn("observations")) {
 checklists <- function(conn = ebird_conn("checklists")) {
   dplyr::tbl(conn, "checklists")
 }
+
+#' @rdname ebird_tbl
+#' @export
+observations_subset <- function(conn = ebird_conn("observations_US-VT_relAug-2022")) {
+  dplyr::tbl(conn, "observations_US-VT_relAug-2022")
+}
