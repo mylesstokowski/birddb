@@ -42,6 +42,9 @@ ebird_conn <- function(dataset = c("observations", "checklists", "observations_U
   # create the view if does not exist
   
   parquet <- ebird_parquet_files(dataset = dataset)
+  # if partitioning by species name, there could be apostrophes in directory
+  # names, so we escape single quotes (') as ('')
+  parquet <- gsub("'", "''", parquet)
   parquet <- paste(parquet, collapse = "', '")
   
   if (!dataset %in% DBI::dbListTables(conn)){
