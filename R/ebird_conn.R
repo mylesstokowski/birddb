@@ -39,6 +39,7 @@ ebird_conn <- function(dataset = c("observations", "checklists", "observations_U
   
   conn <- duckdb_connection(memory_limit = memory_limit,
                             cache_connection = cache_connection)
+  
   # create the view if does not exist
   
   parquet <- ebird_parquet_files(dataset = dataset)
@@ -114,6 +115,8 @@ ebird_parquet_files <- function(dataset = c("observations", "checklists", "obser
   # will need to modify later if partitioning is implemented
   if (length(file) == 0) {
     stop("No parquet files found in: ", dir)
+    # todo: more informative error message that recommends using import_ebird() 
+    # with a dataset of type `dataset`?
   }
   
   return(file)
@@ -123,6 +126,8 @@ ebird_parquet_files <- function(dataset = c("observations", "checklists", "obser
 birddb_cache <- new.env()
 
 # finalizer to close the connection on exit.
+# todo: does this just close an observations dataset by default? would we want
+# it to also close checklists and any other subset datasets?
 local_db_disconnect <- function(db = ebird_conn()){
   if (inherits(db, "DBIConnection")) {
     suppressWarnings({

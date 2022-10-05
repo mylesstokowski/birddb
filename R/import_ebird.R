@@ -100,6 +100,7 @@ import_ebird <- function(tarfile, partition_keys=c("county_code"),
   source_dir <- file.path(ebird_data_dir(), "ebird_tmp")
   unlink(source_dir, recursive = TRUE)
   dir.create(source_dir, recursive = TRUE)
+  
   if (grepl("\\.tar$", tarfile)) {
     utils::untar(tarfile = tarfile, exdir = source_dir)
   } else { # zip
@@ -115,6 +116,7 @@ import_ebird <- function(tarfile, partition_keys=c("county_code"),
   # open tsv and set up data schema
   ds <- arrow_open_ebird_txt(ebd, dest)
   
+  # filter rows
   # this is where we'd add additional pre-filters
   # todo: filtering/selecting should be controllable with function parameters
   # maybe we pass a function that takes and returns an arrow Dataset
@@ -133,12 +135,19 @@ import_ebird <- function(tarfile, partition_keys=c("county_code"),
   # ds <- ds[!duplicated(ds$temp),]
   # ds <- dplyr::select(ds, -c(temp))
   
+  # subset columns
+  # todo: check if there are any columns that other code in birddb depends on,
+  # if so we shouldn't allow dropping those columns. Either way, add validations
+  # on kept/dropped cols (at least check that they exist)
   if (length(keep_cols) > 0) {
     ds <- dplyr::select(ds, keep_cols)  
   }
 
   # stream to parquet
   message("Importing to parquet...")
+  
+  # todo: verify, I believe this will partition into folders by the partition_keys,
+  # then further split folder contents into chunks of <= max_rows_per_file
   arrow::write_dataset(ds, dest, format = "parquet", partitioning = partition_keys,
                        max_rows_per_file=1000000L)
   
@@ -219,6 +228,7 @@ record_metadata <- function(tarfile) {
   }
   
   # parse date from filename
+  # todo: clean up regex? just use sub once?
   if (is.na(subset)) {
   rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.tar",
                  "\\1", f)
@@ -259,6 +269,9 @@ record_metadata <- function(tarfile) {
 
 is_checklists <- function(x) {
   x <- basename(x)
+  # todo: this should really only allow .tar, because checklist level data is 
+  # only provided through the ebird data portal for the entire EBD. Currently 
+  # we're just being more lenient b/c we check is_checklists() before is_observations()
   if (!grepl("\\.(tar)|(zip)$", x)) {
     stop("The provided file does not appear to be a tar archive. The file ",
          "extension should be .tar.")
