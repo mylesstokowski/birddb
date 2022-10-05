@@ -41,20 +41,14 @@ ebird_conn <- function(dataset = c("observations", "checklists", "observations_U
                             cache_connection = cache_connection)
   # create the view if does not exist
   
-  if (dataset == "observations_US-VT_relAug-2022") {
-    parquet <- ebird_parquet_files(dataset = dataset)
-    parquet <- paste0("['", paste(parquet, collapse = "', '"), "']")
-  } else {
-    parquet <- paste0(file.path(ebird_data_dir(), dataset), "/*.parquet")
-  }
-  
-  
+  parquet <- ebird_parquet_files(dataset = dataset)
+  parquet <- paste(parquet, collapse = "', '")
   
   if (!dataset %in% DBI::dbListTables(conn)){
     # query to create view in duckdb to the parquet file
     view_query <- paste0("CREATE VIEW '", dataset, 
-                         "' AS SELECT * FROM parquet_scan(",
-                         parquet, ");")
+                         "' AS SELECT * FROM parquet_scan(['",
+                         parquet, "']);")
     DBI::dbSendQuery(conn, view_query)
   }
 
