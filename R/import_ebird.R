@@ -220,7 +220,9 @@ record_metadata <- function(tarfile) {
   # todo: implement ability to import ebd subset, currently in a zip file
   } else if (is_observations(f, allow_subset = TRUE)) {
     dataset <- "observations"
-    subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\(.tar)|(.zip)",
+    # todo: need to handle temporal and taxonomic subsets (currently just 
+    # handling subsets by place)
+    subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.zip",
                   "\\1", f)
   } else {
     stop("The provided tar filename does not appear to contain eBird data. ", 
@@ -229,13 +231,8 @@ record_metadata <- function(tarfile) {
   
   # parse date from filename
   # todo: clean up regex? just use sub once?
-  if (is.na(subset)) {
-  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.tar",
+  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.(tar|zip)",
                  "\\1", f)
-  } else {
-    rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})$",
-                   "\\1", subset)
-  }
   date <- strsplit(rawdate, "-")[[1]]
   date[1] <- match(date[1], month.abb)
   date <- paste(date[2], date[1], "1", sep = "-")
