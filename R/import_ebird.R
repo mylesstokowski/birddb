@@ -62,12 +62,21 @@ import_ebird <- function(tarfile, partition_keys=c("county_code"),
                           'latitude', 'longitude', 'observation_date',
                           'time_observations_started', 'duration_minutes', 'effort_distance_km', 
                           'all_species_reported', 'state', 'county', 'county_code')) {
+  
+  if (!grepl("\\.(tar)|(zip)$", basename(tarfile))) {
+    stop("The provided file does not appear to be a tar or zip archive. The ",
+         "file extension should be .tar or .zip.")
+  }
+  
   if (is_checklists(tarfile)) {
     dataset <- "checklists"
   } else if (is_observations(tarfile, allow_subset = FALSE)) {
     dataset <- "observations"
   } else if (is_observations(tarfile, allow_subset = TRUE)) {
-    dataset <- paste0("observations", gsub("(ebd)|(.zip)", "", basename(tarfile)))
+    subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.zip",
+                  "\\1", basename(tarfile))
+    subset <- gsub("-", "_", subset)
+    dataset <- paste(c("observations", subset), collapse="_")
     # stop("It appears you downloaded a subset of eBird data using the ",
     #      "Custom Download form. birddb currently only supports importing ",
     #      "the full eBird Basic Dataset.")
@@ -211,6 +220,11 @@ record_metadata <- function(tarfile) {
   stopifnot(is.character(tarfile), length(tarfile) == 1, file.exists(tarfile))
   
   f <- basename(tarfile)
+  if (!grepl("\\.(tar)|(zip)$", f)) {
+    stop("The provided file does not appear to be a tar or zip archive. The ",
+         "file extension should be .tar or .zip.")
+  }
+  
   if (is_checklists(f)) {
     dataset <- "checklists"
     subset <- NA_character_
@@ -230,7 +244,6 @@ record_metadata <- function(tarfile) {
   }
   
   # parse date from filename
-  # todo: clean up regex? just use sub once?
   rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.(tar|zip)",
                  "\\1", f)
   date <- strsplit(rawdate, "-")[[1]]
@@ -266,22 +279,11 @@ record_metadata <- function(tarfile) {
 
 is_checklists <- function(x) {
   x <- basename(x)
-  # todo: this should really only allow .tar, because checklist level data is 
-  # only provided through the ebird data portal for the entire EBD. Currently 
-  # we're just being more lenient b/c we check is_checklists() before is_observations()
-  if (!grepl("\\.(tar)|(zip)$", x)) {
-    stop("The provided file does not appear to be a tar archive. The file ",
-         "extension should be .tar.")
-  }
   grepl("ebd_sampling_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar$", x)
 }
 
 is_observations <- function(x, allow_subset = FALSE) {
   x <- basename(x)
-  if (!grepl("\\.(tar)|(zip)$", x)) {
-    stop("The provided file does not appear to be a tar or zip archive. The ",
-         "file extension should be .tar or .zip.")
-  }
   is_obs <- grepl("ebd_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar$", x)
   if (allow_subset) {
     is_ss <- grepl("ebd[-_A-Za-z0-9]*_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.zip$", x)
