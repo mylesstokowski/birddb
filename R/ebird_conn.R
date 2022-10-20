@@ -106,12 +106,6 @@ db_is_invalid <- function(conn) {
 
 ebird_parquet_files <- function(dataset = existing_datasets()) {
   
-  # alternative approach combining dataset and other directory names in the
-  # ebird data dir - could make sense if we keep the default param value as 
-  # c('observations', 'checklists')
-  # options <- list.dirs(ebird_data_dir(), full.names = FALSE, recursive = FALSE)
-  # dataset <- match.arg(arg = dataset, choices = c(formals()$dataset, options), several.ok=T)
-
   dataset <- match.arg(dataset)
   
   # list of all parquet files
