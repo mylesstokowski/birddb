@@ -50,6 +50,9 @@ checklists <- function(conn = ebird_conn("checklists")) {
 
 #' @rdname ebird_tbl
 #' @export
+# todo: probably want to just remove this function - can use ebird_conn for 
+# connecting to any subset dataset. With the ebird_conn() approach, we still
+# need to coerce to dplyr tibble, but that's not hard...
 observations_subset <- function(conn = ebird_conn("observations_US-VT_relAug-2022")) {
   dplyr::tbl(conn, "observations_US-VT_relAug-2022")
 }
