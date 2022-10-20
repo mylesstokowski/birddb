@@ -31,12 +31,13 @@
 #' 
 #' unlink(temp_dir, recursive = TRUE)
 #' todo: need a more generic way to connect to subset observations datasets 
-ebird_conn <- function(dataset = c("observations", "checklists", "observations_US-VT_relAug-2022"), 
+ebird_conn <- function(dataset = existing_datasets(), 
                        cache_connection = TRUE,
                        memory_limit = 16) {
   
+  # todo: check default behavior of match.arg before my modifications
   dataset <- match.arg(dataset)
-  
+
   conn <- duckdb_connection(memory_limit = memory_limit,
                             cache_connection = cache_connection)
   
@@ -103,7 +104,14 @@ db_is_invalid <- function(conn) {
   inherits(conn, "DBIConnection") && !DBI::dbIsValid(conn)
 }
 
-ebird_parquet_files <- function(dataset = c("observations", "checklists", "observations_US-VT_relAug-2022")) {
+ebird_parquet_files <- function(dataset = existing_datasets()) {
+  
+  # alternative approach combining dataset and other directory names in the
+  # ebird data dir - could make sense if we keep the default param value as 
+  # c('observations', 'checklists')
+  # options <- list.dirs(ebird_data_dir(), full.names = FALSE, recursive = FALSE)
+  # dataset <- match.arg(arg = dataset, choices = c(formals()$dataset, options), several.ok=T)
+
   dataset <- match.arg(dataset)
   
   # list of all parquet files
@@ -121,6 +129,12 @@ ebird_parquet_files <- function(dataset = c("observations", "checklists", "obser
   
   return(file)
 }
+
+# return a character vector of the datasets that have been imported
+existing_datasets <- function() {
+  list.dirs(ebird_data_dir(), recursive = FALSE, full.names = FALSE)
+}
+
 
 # environment to store the cached copy of the connection
 birddb_cache <- new.env()
