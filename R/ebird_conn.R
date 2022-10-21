@@ -51,9 +51,15 @@ ebird_conn <- function(dataset = possible_datasets(),
   
   if (!dataset %in% DBI::dbListTables(conn)){
     # query to create view in duckdb to the parquet file
-    view_query <- paste0("CREATE VIEW '", dataset, 
+    # todo: there's some issue with how this is read - the partitioned column
+    # seems to be dropped. Reading around it seems like this is indeed an arrow
+    # behavior (dropping partition col). We would hope to get this from hive dir
+    # names, but seems like this might not be supported in duckdb currently?
+    # related: https://github.com/duckdb/duckdb/issues/4530
+    view_query <- paste0("CREATE VIEW '", dataset,
                          "' AS SELECT * FROM parquet_scan(['",
-                         parquet, "']);")
+                         parquet, "'], HIVE_PARTITIONING=true);")
+    
     DBI::dbSendQuery(conn, view_query)
   }
 

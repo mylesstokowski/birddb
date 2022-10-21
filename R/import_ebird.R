@@ -92,6 +92,10 @@ import_ebird <- function(tarfile, partition_keys=c(), keep_cols=c()) {
     } else {
       message("Overwriting existing eBird ", dataset, " data.")
     }
+    # at least with key-based partitioning, have to explicitly remove contents
+    # of the dir - simply writing new files might not remove old files if the
+    # partitioning is different
+    unlink(dest, recursive=TRUE) 
   }
   
   message(sprintf("Importing %s data from the eBird Basic Dataset: %s",
