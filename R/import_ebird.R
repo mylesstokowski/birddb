@@ -54,14 +54,7 @@
 #' import_ebird(tar)
 #' 
 #' unlink(temp_dir, recursive = TRUE)
-import_ebird <- function(tarfile, partition_keys=c("county_code"), 
-                         keep_cols=c(
-                          'group_identifier', 'sampling_event_identifier', 'observer_id',
-                          'scientific_name', 'observation_count', 'common_name',
-                          'county_code', 'locality', 'locality_id', 'locality_type',
-                          'latitude', 'longitude', 'observation_date',
-                          'time_observations_started', 'duration_minutes', 'effort_distance_km', 
-                          'all_species_reported', 'state', 'county', 'county_code')) {
+import_ebird <- function(tarfile, partition_keys=c(), keep_cols=c()) {
   
   if (!grepl("\\.(tar)|(zip)$", basename(tarfile))) {
     stop("The provided file does not appear to be a tar or zip archive. The ",
@@ -125,29 +118,14 @@ import_ebird <- function(tarfile, partition_keys=c("county_code"),
   # open tsv and set up data schema
   ds <- arrow_open_ebird_txt(ebd, dest)
   
-  # filter rows
-  # this is where we'd add additional pre-filters
-  # todo: filtering/selecting should be controllable with function parameters
-  # maybe we pass a function that takes and returns an arrow Dataset
-  ds <- dplyr::filter(
-    ds, 
-    (protocol_type == "Traveling" | protocol_type == "Stationary"),
-    all_species_reported == 1,
-    category == "species",
-    locality_type == "H",
-    # observation_count == "X" | observation_count > 0 # we want to keep presence "X" observations
-    )
-  
-  # deduplicate on group identifier, common name
-  # todo: this doesn't work as is with arrow Dataset
-  # ds <- dplyr::mutate(ds, temp = stringr::str_c(group_identifier, common_name))
-  # ds <- ds[!duplicated(ds$temp),]
-  # ds <- dplyr::select(ds, -c(temp))
-  
+  # todo: if we want user to able to subset rows during the .tsv -> .parquet 
+  # step, it'd likely happen here
+  # maybe we pass a function that takes and returns an arrow Dataset?
+
   # subset columns
   # todo: check if there are any columns that other code in birddb depends on,
   # if so we shouldn't allow dropping those columns. Either way, add validations
-  # on kept/dropped cols (at least check that they exist)
+  # on kept/dropped cols (at least check that they exist)?
   if (length(keep_cols) > 0) {
     ds <- dplyr::select(ds, keep_cols)  
   }
@@ -234,8 +212,7 @@ record_metadata <- function(tarfile) {
   # todo: implement ability to import ebd subset, currently in a zip file
   } else if (is_observations(f, allow_subset = TRUE)) {
     dataset <- "observations"
-    # todo: need to handle temporal and taxonomic subsets (currently just 
-    # handling subsets by place)
+    # todo: does this handle temporal and taxonomic subsets (in addition to place)?
     subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.zip",
                   "\\1", f)
   } else {
@@ -263,6 +240,7 @@ record_metadata <- function(tarfile) {
   hash <- digest::digest(tarfile, algo = "crc32", file = TRUE)
   
   # save to csv
+  # todo: add any partitioning or subsetting to metadata file?
   file_metadata <- data.frame(dataset = dataset, 
                               version = version,
                               subset = subset, 
@@ -270,6 +248,9 @@ record_metadata <- function(tarfile) {
                               file_size = file.size(tarfile),
                               hash_crc32 = as.character(hash)[],
                               timestamp = Sys.time())
+  
+  # todo: currently observations subset metadata and regular observations 
+  # metadata would have same filename and overwrite each other
   f_metadata <- file.path(ebird_data_dir(),
                           paste0(dataset, "-metadata.csv"))
   utils::write.csv(file_metadata, file = f_metadata, row.names = FALSE, na = "")
