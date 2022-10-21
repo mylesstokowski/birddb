@@ -31,7 +31,7 @@
 #' 
 #' unlink(temp_dir, recursive = TRUE)
 #' todo: need a more generic way to connect to subset observations datasets 
-ebird_conn <- function(dataset = existing_datasets(), 
+ebird_conn <- function(dataset = possible_datasets(),
                        cache_connection = TRUE,
                        memory_limit = 16) {
   
@@ -104,7 +104,7 @@ db_is_invalid <- function(conn) {
   inherits(conn, "DBIConnection") && !DBI::dbIsValid(conn)
 }
 
-ebird_parquet_files <- function(dataset = existing_datasets()) {
+ebird_parquet_files <- function(dataset = possible_datasets()) {
   
   dataset <- match.arg(dataset)
   
@@ -125,8 +125,9 @@ ebird_parquet_files <- function(dataset = existing_datasets()) {
 }
 
 # return a character vector of the datasets that have been imported
-existing_datasets <- function() {
-  list.dirs(ebird_data_dir(), recursive = FALSE, full.names = FALSE)
+possible_datasets <- function() {
+  existing <- list.dirs(ebird_data_dir(), recursive = FALSE, full.names = FALSE)
+  unique(c("observations", "checklists", existing))
 }
 
 
