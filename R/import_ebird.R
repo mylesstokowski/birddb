@@ -60,9 +60,11 @@ import_ebird <- function(tarfile) {
   } else if (is_observations(tarfile, allow_subset = FALSE)) {
     dataset <- "observations"
   } else if (is_observations(tarfile, allow_subset = TRUE)) {
-    stop("It appears you downloaded a subset of eBird data using the ",
-         "Custom Download form. birddb currently only supports importing ",
-         "the full eBird Basic Dataset.")
+    dataset <- "observations_subset"
+    subset <- TRUE
+    # stop("It appears you downloaded a subset of eBird data using the ",
+    #      "Custom Download form. birddb currently only supports importing ",
+    #      "the full eBird Basic Dataset.")
   } else {
     stop("Non-stardard eBird data filename provided: ", basename(tarfile))
   }
@@ -92,8 +94,12 @@ import_ebird <- function(tarfile) {
   source_dir <- file.path(ebird_data_dir(), "ebird_tmp")
   unlink(source_dir, recursive = TRUE)
   dir.create(source_dir, recursive = TRUE)
-  utils::untar(tarfile = tarfile, exdir = source_dir)
-  ebd <- list.files(source_dir, pattern = "ebd.*\\.txt\\.gz",
+  if (SUBSET) {
+    utils::unzip(zipfile = tarfile, exdir = source_dir)  
+  } else {
+    utils::untar(tarfile = tarfile, exdir = source_dir)
+  }
+  ebd <- list.files(source_dir, pattern = "ebd.*\\.(txt\\.gz|txt)",
                     full.names = TRUE, recursive = TRUE)
   if (length(ebd) != 1 || !file.exists(ebd)) {
     stop("txt.gz file not successfully extracted from tarfile.")
@@ -173,17 +179,17 @@ record_metadata <- function(tarfile) {
     dataset <- "observations"
     subset <- NA_character_
   # todo: implement ability to import ebd subset, currently in a zip file
-  # } else if (is_observations(f, allow_subset = TRUE)) {
-  #   dataset <- "observations"
-  #   subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar",
-  #                 "\\1", f)
+  } else if (is_observations(f, allow_subset = TRUE)) {
+    dataset <- "observations"
+    subset <- sub("ebd_([-_A-Za-z0-9]+)_rel[A-Z]{1}[a-z]{2}-[0-9]{4}\\.tar",
+                  "\\1", f)
   } else {
     stop("The provided tar filename does not appear to contain eBird data. ", 
          "The expected format is, e.g., ebd_relJul-2021.tar.")
   }
   
   # parse date from filename
-  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.tar", 
+  rawdate <- sub("ebd[-_A-Za-z0-9]*_rel([A-Z]{1}[a-z]{2}-[0-9]{4})\\.(tar|zip)", 
                  "\\1", f)
   date <- strsplit(rawdate, "-")[[1]]
   date[1] <- match(date[1], month.abb)
@@ -219,7 +225,7 @@ record_metadata <- function(tarfile) {
 
 is_checklists <- function(x) {
   x <- basename(x)
-  if (!grepl("\\.tar$", x)) {
+  if (!grepl("\\.(tar|zip)$", x)) {
     stop("The provided file does not appear to be a tar archive. The file ",
          "extension should be .tar.")
   }
@@ -228,7 +234,7 @@ is_checklists <- function(x) {
 
 is_observations <- function(x, allow_subset = FALSE) {
   x <- basename(x)
-  if (!grepl("\\.tar$", x)) {
+  if (!grepl("\\.(tar|zip)$", x)) {
     stop("The provided file does not appear to be a tar archive. The file ",
          "extension should be .tar.")
   }

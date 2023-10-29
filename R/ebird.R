@@ -42,6 +42,9 @@ observations <- function(conn = ebird_conn("observations")) {
   dplyr::tbl(conn, "observations")
 }
 
+#' #' @rdname ebird_tbl
+#' observations_subset <- function(conn = ebird_conn('p'))
+
 #' @rdname ebird_tbl
 #' @export
 checklists <- function(conn = ebird_conn("checklists")) {
